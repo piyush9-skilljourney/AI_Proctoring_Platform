@@ -1,0 +1,111 @@
+.review-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: calc(100vh - 70px);
+  padding: 2rem;
+  box-sizing: border-box;
+}
+
+.review-card {
+  background: #1e293b;
+  border: 1px solid #334155;
+  border-radius: 16px;
+  padding: 2.5rem;
+  width: 100%;
+  max-width: 1100px;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.4);
+}
+
+.review-card h1 {
+  margin-top: 0;
+  font-size: 2rem;
+  color: #f8fafc;
+  margin-bottom: 0.5rem;
+}
+
+.review-layout {
+  display: grid;
+  grid-template-columns: 1.5fr 1fr;
+  gap: 2rem;
+  margin-top: 2rem;
+}
+
+.video-section h3, .logs-section h3 {
+  margin-top: 0;
+  font-size: 1.2rem;
+  font-weight: 500;
+  color: #cbd5e1;
+  border-bottom: 1px solid #334155;
+  padding-bottom: 0.75rem;
+}
+
+.review-video {
+  width: 100%;
+  border-radius: 12px;
+  background: #0f172a;
+  border: 1px solid #334155;
+  aspect-ratio: 4/3;
+  object-fit: cover;
+}
+
+.no-video {
+  background: #0f172a;
+  border-radius: 12px;
+  border: 1px dashed #475569;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  aspect-ratio: 4/3;
+  color: #64748b;
+}
+
+.logs-list {
+  background: #0f172a;
+  border: 1px solid #334155;
+  border-radius: 12px;
+  padding: 1rem;
+  height: 300px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.log-item {
+  padding: 0.75rem;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+}
+
+.log-item.good { background: rgba(16, 185, 129, 0.1); color: #34d399; }
+.log-item.alert { background: rgba(239, 68, 68, 0.1); color: #fca5a5; border-left: 3px solid #ef4444; }
+
+.log-time { font-family: monospace; color: #94a3b8; }
+.log-type { font-weight: 600; }
+
+.action-panel {
+  margin-top: 1.5rem;
+  display: flex;
+  gap: 1rem;
+  justify-content: flex-end;
+}
+
+.btn-secondary {
+  background: transparent;
+  color: #94a3b8;
+  border: 1px solid #475569;
+  padding: 0.75rem 1.5rem;
+  border-radius: 8px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-secondary:hover {
+  background: #334155;
+  color: white;
+}
