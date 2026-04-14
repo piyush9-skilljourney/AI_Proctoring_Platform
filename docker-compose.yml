@@ -1,0 +1,35 @@
+version: '3.8'
+
+services:
+  mongodb:
+    image: mongo:latest
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb_data:/data/db
+
+  backend:
+    build: ./backend
+    ports:
+      - "8000:8000"
+    environment:
+      - MONGO_DETAILS=mongodb://mongodb:27017
+      - DB_NAME=hyrai_db
+      - FRONTEND_URL=http://localhost
+      - BACKEND_URL=http://localhost:8000
+    depends_on:
+      - mongodb
+    volumes:
+      - ./backend/uploads:/app/uploads
+
+  frontend:
+    build: .
+    ports:
+      - "80:80"
+    environment:
+      - VITE_API_BASE=http://localhost:8000/api/interviews
+    depends_on:
+      - backend
+
+volumes:
+  mongodb_data:

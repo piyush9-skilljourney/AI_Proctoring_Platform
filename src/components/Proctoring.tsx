@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { FaceLandmarker, ObjectDetector, FilesetResolver } from "@mediapipe/tasks-vision";
-import { useNavigate, useLocation } from "react-router-dom";
+import { useNavigate, useLocation, useSearchParams } from "react-router-dom";
 import "./Proctoring.css";
 
 type ProctoringStatus =
@@ -16,10 +16,16 @@ type ProctoringStatus =
   | "DUPLICATE_DISPLAY"
   | "PERIPHERAL_DETECTED";
 
+const CHROME_EXTENSION_ID = import.meta.env.VITE_CHROME_EXTENSION_ID || "jlgeegkokgbcapibagboldphomponhac";
+const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:8000/api/interviews";
+
 const Proctoring = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const candidateName = location.state?.candidateName || "Anonymous Candidate";
+  const [searchParams] = useSearchParams();
+  const urlSessionId = searchParams.get("session_id");
+  const urlName = searchParams.get("name");
+  const candidateName = urlName || location.state?.candidateName || "Anonymous Candidate";
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const [status, setStatus] = useState<ProctoringStatus>("LOADING");
@@ -77,7 +83,7 @@ const Proctoring = () => {
             delegate: "GPU"
           },
           runningMode: "VIDEO",
-          scoreThreshold: 0.5 // High enough to avoid false positives
+          scoreThreshold: 0.3 // Increased sensitivity to catch corners/edges of devices
         });
 
         if (isComponentMounted) {
@@ -169,7 +175,8 @@ const Proctoring = () => {
             if (detection.categories && detection.categories.length > 0) {
               const category = detection.categories[0].categoryName;
               if (category === "person") personCount++;
-              if (category === "cell phone") phoneDetected = true;
+              // Catching phones and objects that look like them (remotes/electronics)
+              if (category === "cell phone" || category === "remote") phoneDetected = true;
             }
           }
         }
@@ -379,8 +386,74 @@ const Proctoring = () => {
     window.addEventListener("copy", handleCopyPaste);
     window.addEventListener("paste", handleCopyPaste);
 
+    // 5. Continuous Extension Security Polling (Hardware Audit)
+    const extensionPollInterval = setInterval(() => {
+      if (!isComponentMounted) return;
+
+      const suspiciousNames = [
+        "generic", "pnp", "hdmi", "displayport", "dp", 
+        "samsung", "lg", "dell", "benq", "acer", "asus", 
+        "viewsonic", "projector", "television", "tv"
+      ];
+
+      if (window.chrome?.runtime?.sendMessage) {
+        try {
+          window.chrome.runtime.sendMessage(CHROME_EXTENSION_ID, { type: "GET_DISPLAY_SECURITY" }, (res: any) => {
+            if (window.chrome.runtime.lastError) {
+              console.warn("[HyrAI] Extension disconnected during session.");
+              return;
+            }
+
+            if (res && res.success) {
+              const { displayCount, isMirrored, hasExternal, displays } = res;
+              const logicalCount = screenCount;
+
+              // HEURISTIC 1: Hardware-to-Software Discrepancy
+              const isDiscrepancy = displayCount > window.screen.availWidth / window.screen.width ? false : (displayCount > logicalCount); 
+              // (More robust discrepancy check)
+              
+              // HEURISTIC 2: Display Name (EDID) Analysis - THE BREAKTHROUGH
+              const hasSuspiciousName = displays?.some((d: any) => 
+                suspiciousNames.some(name => d.name?.toLowerCase().includes(name))
+              );
+
+              if (isMirrored || (displayCount > 1 && logicalCount === 1) || hasSuspiciousName) {
+                securityViolationRef.current = "DUPLICATE_DISPLAY";
+                setScreenCount(displayCount);
+              } else if (displayCount > 1) {
+                securityViolationRef.current = "MULTIPLE_DISPLAYS";
+                setScreenCount(displayCount);
+              } else {
+                if (securityViolationRef.current === "MULTIPLE_DISPLAYS" || securityViolationRef.current === "DUPLICATE_DISPLAY") {
+                  if (displayCount === 1 && logicalCount === 1) securityViolationRef.current = null;
+                }
+                setScreenCount(displayCount);
+                setIsExternalDisplay(hasExternal);
+
+                // LAYER 4: Audio Peripheral Audit (Sync with Display Audit)
+                navigator.mediaDevices.enumerateDevices().then(devices => {
+                  const hasExternalAudio = devices.some(d => 
+                    d.kind === 'audiooutput' && 
+                    (d.label.toLowerCase().includes('hdmi') || 
+                     d.label.toLowerCase().includes('displayport') ||
+                     suspiciousNames.slice(5).some(brand => d.label.toLowerCase().includes(brand)))
+                  );
+                  if (hasExternalAudio && (securityViolationRef.current === null || securityViolationRef.current === "GOOD")) {
+                    if (hasExternal) securityViolationRef.current = "DUPLICATE_DISPLAY";
+                  }
+                });
+              }
+            }
+          });
+        } catch (e) {
+          console.error("Extension polling failed:", e);
+        }
+      }
+    }, 3000);
+
     return () => {
       isComponentMounted = false;
+      clearInterval(extensionPollInterval);
       if (animationFrameId) cancelAnimationFrame(animationFrameId);
       if (faceLandmarker) faceLandmarker.close();
       if (objectDetector) objectDetector.close();
@@ -436,10 +509,13 @@ const Proctoring = () => {
 
     const initSession = async () => {
       try {
-        const res = await fetch("http://127.0.0.1:8000/api/interviews/start", {
+        const res = await fetch(`${API_BASE}/start`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ candidate_name: candidateName })
+          body: JSON.stringify({ 
+            candidate_name: candidateName,
+            session_id: urlSessionId // Use the ID from the invitation link
+          })
         });
         const data = await res.json();
         sessionIdRef.current = data.session_id;
@@ -495,11 +571,11 @@ const Proctoring = () => {
   return (
     <div className="proctoring-container">
       <div className="header">
-        <h1>HyrAI Live Proctoring</h1>
-        <p>Real-time Candidate Verification System</p>
+        <div className="session-badge">SECURE SESSION • {candidateName.toUpperCase()}</div>
+        <h1 className="premium-gradient-text">HyrAI Proctoring</h1>
         {status !== "LOADING" && (
           <div className={`timer-badge ${timeLeft < 30 ? 'alert' : ''}`}>
-            Time Remaining: {Math.floor(timeLeft / 60)}:{(timeLeft % 60).toString().padStart(2, '0')}
+             REGULATION TIMER: {Math.floor(timeLeft / 60)}:{(timeLeft % 60).toString().padStart(2, '0')}
           </div>
         )}
       </div>
@@ -508,7 +584,7 @@ const Proctoring = () => {
         {status === "LOADING" && (
           <div className="loading-overlay">
             <div className="spinner"></div>
-            <span>Loading Multi-Model AI Engines...</span>
+            <div className="loading-text">BOOTING AI CORE • NEURAL AUDIT ACTIVE</div>
           </div>
         )}
 
@@ -520,21 +596,20 @@ const Proctoring = () => {
 
         {status !== "GOOD" && status !== "LOADING" && (
           <div className="violation-toast">
-             <span className="blink">●</span> AI ALERT: {statusInfo.text.split(' ')[1]} DETECTED
+             <span className="blink">●</span> AI ALERT: {statusInfo.text.split(' ').slice(1).join(' ')}
           </div>
         )}
 
         {displayError && !displayPermission && (
-          <div className="display-error-badge">
-            <p>{displayError}</p>
-            {displayError.includes("click") && (
-              <button className="auth-btn" onClick={() => {
+          <div className="display-error-badge glass-panel" style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', padding: '2rem', zIndex: 50, textAlign: 'center', maxWidth: '80%' }}>
+            <p style={{ color: 'var(--error)', fontWeight: 600 }}>DISPLAY SECURITY PROTOCOL REQUIRED</p>
+            <p style={{ fontSize: '0.9rem', color: 'var(--text-dim)', marginBottom: '1.5rem' }}>{displayError}</p>
+            <button className="btn-premium" onClick={() => {
                 // @ts-ignore
                 if (window.triggerDisplaySecurity) window.triggerDisplaySecurity();
               }}>
-                Enable Display Security
+                Authorize Hardware Audit
               </button>
-            )}
           </div>
         )}
 
@@ -555,17 +630,19 @@ const Proctoring = () => {
         <div className="metric-card">
           <div className="label">Display Count</div>
           <div className={`value ${screenCount > 1 ? 'alert' : ''}`}>{status === "LOADING" ? "-" : screenCount}</div>
-          <div className="sub-label">{isExternalDisplay ? "External Input Detected" : "Built-in Display"}</div>
+          <div className="sub-label" style={{ fontSize: '0.7rem', color: 'var(--text-dim)', marginTop: '0.5rem' }}>
+            {isExternalDisplay ? "External Input Detected" : "Built-in Display"}
+          </div>
         </div>
         <div className="metric-card">
-          <div className="label">Input Method</div>
-          <div className="value" style={{ textTransform: 'capitalize' }}>{status === "LOADING" ? "-" : pointerType}</div>
-          <div className="sub-label">Peripheral Monitor</div>
+          <div className="label">Pointer Audit</div>
+          <div className="value" style={{ textTransform: 'capitalize' }}>{status === "LOADING" ? "-" : (pointerType || "System")}</div>
+          <div className="sub-label" style={{ fontSize: '0.7rem', color: 'var(--text-dim)', marginTop: '0.5rem' }}>Active Peripheral</div>
         </div>
         <div className="metric-card">
-          <div className="label">System State</div>
-          <div className="value" style={{ color: status === "GOOD" ? '#34d399' : '#f87171' }}>
-            {status === "LOADING" ? "Booting" : status === "GOOD" ? "Secure" : "Alert"}
+          <div className="label">Neural Health</div>
+          <div className="value" style={{ color: status === "GOOD" ? 'var(--success)' : 'var(--error)' }}>
+            {status === "LOADING" ? "BOOTING" : status === "GOOD" ? "SECURE" : "ALERT"}
           </div>
         </div>
       </div>
