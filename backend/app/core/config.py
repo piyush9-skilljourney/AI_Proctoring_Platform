@@ -34,7 +34,7 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 # 1 day
 
     class Config:
-        env_file = ".env"
-        extra = "ignore" # Prevent crash on unexpected env vars
+        env_file = "backend/.env" # Explicit path from root
+        extra = "ignore"
 
 settings = Settings()

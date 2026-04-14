@@ -3,6 +3,7 @@ from motor.motor_asyncio import AsyncIOMotorClient
 from app.schemas.models import StartSessionRequest, StartSessionRespond, SessionInfo, JobPosition, Invitation, JobCreate, InvitationCreate
 from app.core.config import settings
 from app.core.auth import authenticate_admin, create_access_token, get_current_admin
+from app.services.email_service import send_invitation_email
 from fastapi.security import OAuth2PasswordRequestForm
 from typing import List
 import uuid
@@ -96,7 +97,8 @@ async def submit_interview(
         logger.error(json.dumps({"event": "video_save_failed", "session_id": session_id, "error": str(e)}))
         raise HTTPException(status_code=500, detail="Failed to save video.")
 
-        # Update Session
+    # Update Session
+    try:
         result = await session_collection.update_one(
             {"session_id": session_id},
             {"$set": {"status": "submitted", "logs": logs, "video_path": video_path, "submitted_at": datetime.utcnow()}}
@@ -238,6 +240,18 @@ async def create_invitation(req: InvitationCreate, current_user: str = Depends(g
     }
     await invite_collection.insert_one(invite_data)
     
+    # Send Automated Admission Email
+    try:
+        await send_invitation_email(
+            email=req.candidate_email,
+            candidate_name=req.candidate_name,
+            job_title=job["title"],
+            invite_link=invite_link
+        )
+        logger.info(json.dumps({"event": "invite_email_sent", "candidate": req.candidate_name}))
+    except Exception as e:
+        logger.error(json.dumps({"event": "invite_email_failed", "error": str(e), "candidate": req.candidate_name}))
+
     logger.info(json.dumps({
         "event": "invitation_created",
         "candidate": req.candidate_name,

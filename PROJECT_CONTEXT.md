@@ -113,6 +113,7 @@
 | Step-18| Create | Dockerfile/docker-compose.yml | Portability: Containerizing the full stack for "one-click" deployment. |
 | Step-19| Modify | endpoints.py/Admin.tsx | Polish: Implemented invitation status sync and detailed violation logs view. |
 | Step-20| Create | DEPLOYMENT_GUIDE.md | Handover: Professional instructions for one-click Docker deployment and AI tuning. |
+| Step-21| Create | email_service.py | Communication: Automated professional email invitations for candidates. |
 
 ---
 
