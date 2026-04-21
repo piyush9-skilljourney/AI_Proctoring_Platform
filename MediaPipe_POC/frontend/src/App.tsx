@@ -179,12 +179,9 @@ function App() {
             <div className="telemetry-label">Head Deviation (Yaw)</div>
             <div className="telemetry-value">{(faceResults?.headPose.yaw || 0).toFixed(2)}</div>
           </div>
-          <div className="telemetry-card">
-            <div className="telemetry-label">Environment Audit</div>
             <div className="telemetry-value" style={{ fontSize: '0.9rem', color: objectResults?.isProhibited ? 'var(--danger)' : 'var(--success)' }}>
-              {objectResults?.detectedItems.slice(0, 2).join(', ') || 'Scanning...'}
+              {objectResults?.detectedItems.length ? objectResults.detectedItems.slice(0, 5).join(', ') : 'Scanning...'}
             </div>
-          </div>
         </div>
       </main>
     </>

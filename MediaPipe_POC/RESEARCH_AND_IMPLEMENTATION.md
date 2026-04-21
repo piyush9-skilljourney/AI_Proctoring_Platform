@@ -45,9 +45,10 @@ The current trend in secure assessments is to minimizefriction. Traditional brow
 - **Implementation**: Calculate the relative horizontal position of the iris center (468/473) between the inner and outer eye corners.
 - **Metric**: 0.5 is centered; values near 0 (inner) or 1 (outer) indicate extreme gaze deviation.
 
-### Phase 2: Object Detection
-**Goal**: Block access if a mobile phone is visible.
-- **Logic**: `objectDetector.detectForVideo()` filtering for labels: `cell phone`, `laptop`.
+### Phase 2: Object Detection (Prohibited Items) - ✅ Complete
+**Goal**: Block access if a mobile phone or prohibited item is visible.
+- **Logic**: `objectDetector.detectForVideo()` filtering for labels: `cell phone`, `laptop`, `book`.
+- **Polish**: Specific logging (e.g., "LAPTOP DETECTED") implemented.
 
 ### Phase 3: Screen Monitoring
 **Goal**: Ensure only the exam tab is visible and no duplicate displays are active.

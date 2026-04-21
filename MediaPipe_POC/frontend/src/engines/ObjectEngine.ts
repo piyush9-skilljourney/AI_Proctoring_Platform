@@ -24,10 +24,10 @@ export class ObjectEngine {
       this.detector = await ObjectDetector.createFromOptions(vision, {
         baseOptions: {
           modelAssetPath: `/models/efficientdet_lite0.tflite`,
-          delegate: "GPU"
+          delegate: "AUTO"
         },
         runningMode: "VIDEO",
-        scoreThreshold: 0.3
+        scoreThreshold: 0.2
       });
 
       this.isLoaded = true;
@@ -66,8 +66,10 @@ export class ObjectEngine {
     });
 
     let message = "Environment Clear";
-    if (isProhibited) {
-      message = "PROHIBITED DEVICE DETECTED";
+    const prohibitedFound = items.filter(item => this.prohibitedLabels.includes(item));
+    
+    if (prohibitedFound.length > 0) {
+      message = `${prohibitedFound[0].toUpperCase()} DETECTED`;
     } else if (personCount > 1) {
       isProhibited = true;
       message = "MULTIPLE PEOPLE DETECTED";

@@ -30,12 +30,11 @@
 
 ## Modules
 
-| Module | Description | Status |
-|--------|------------|--------|
-| Base Foundation | Backend/Frontend Setup | ✏️ In Progress |
-| Face Landmarking | Eye tracking & Gaze | ⏳ Pending |
-| Object Detection | Phone detection | ⏳ Pending |
-| Screen Audit | Window monitoring | ⏳ Pending |
+| Phase 1: Foundation | Backend/Frontend Setup | ✅ Complete |
+| Phase 1.5: Face Engine | Eye tracking & Gaze | ✅ Complete |
+| Phase 2: Object Audit | Detailed device detection | ✅ Complete |
+| Phase 3: Emotion Audit | Verbal & Behavioral | ⏳ Planning |
+| Phase 4: Screen Audit | Window monitoring | ⏳ Pending |
 
 ---
 
