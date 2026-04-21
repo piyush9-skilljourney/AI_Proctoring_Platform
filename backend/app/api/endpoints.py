@@ -72,12 +72,26 @@ async def submit_interview(
         raw_logs = json.loads(logsJson)
         logs = []
         for log in raw_logs:
-            ms = log.get("timestamp", 0)
-            mins = int(ms // 60000)
-            secs = int((ms % 60000) // 1000)
+            # Handle both numeric (ms) and ISO timestamps
+            ts = log.get("timestamp", 0)
+            if isinstance(ts, str):
+                try:
+                    dt = datetime.fromisoformat(ts.replace("Z", "+00:00"))
+                    # Calculate offset from session start if possible, otherwise use local clock
+                    mins = dt.minute
+                    secs = dt.second
+                    time_str = f"{mins:02d}:{secs:02d}"
+                except:
+                    time_str = "00:00"
+            else:
+                mins = int(ts // 60000)
+                secs = int((ts % 60000) // 1000)
+                time_str = f"{mins:02d}:{secs:02d}"
+
             logs.append({
-                "timestamp": f"{mins:02d}:{secs:02d}",
-                "type": log.get("type", "UNKNOWN")
+                "timestamp": time_str,
+                "type": log.get("event") or log.get("type", "UNKNOWN"),
+                "details": log.get("details")
             })
     except Exception as e:
         logger.error(json.dumps({"event": "log_parse_failed", "session_id": session_id, "error": str(e)}))

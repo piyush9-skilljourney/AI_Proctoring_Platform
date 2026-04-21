@@ -7,7 +7,7 @@ interface Session {
   session_id: string;
   candidate_name: string;
   status: string;
-  logs: { timestamp: string; type: string }[];
+  logs: { timestamp: string; type: string; details?: string }[];
   video_path: string | null;
   video_url?: string | null;
   ai_summary?: string | null;
@@ -500,23 +500,39 @@ const Admin = () => {
                 </thead>
                 <tbody>
                   {selectedSession.logs.length > 0 ? (
-                    selectedSession.logs.map((log, idx) => (
-                      <tr key={idx}>
-                        <td>{log.timestamp}</td>
-                        <td>
-                          <span className={`violation-pill ${log.type.toLowerCase()}`}>
-                            {log.type.replace(/_/g, ' ')}
-                          </span>
-                        </td>
-                        <td>
-                          {["PHONE_DETECTED", "MULTIPLE_FACES", "DUPLICATE_DISPLAY"].includes(log.type) ? (
-                            <span className="severity-high">High</span>
-                          ) : (
-                            <span className="severity-med">Medium</span>
-                          )}
-                        </td>
-                      </tr>
-                    ))
+                    selectedSession.logs.map((log, idx) => {
+                      let detailsObj: any = null;
+                      if (log.type === "BEHAVIORAL_SNAPSHOT" && log.details) {
+                        try { detailsObj = JSON.parse(log.details); } catch (e) {}
+                      }
+
+                      return (
+                        <tr key={idx}>
+                          <td>{log.timestamp}</td>
+                          <td>
+                            {detailsObj ? (
+                              <div className="behavioral-snapshot">
+                                <span className="emotion-tag">{detailsObj.emotion}</span>
+                                <span className="stress-tag">Stress: {detailsObj.stress}%</span>
+                              </div>
+                            ) : (
+                              <span className={`violation-pill ${log.type.toLowerCase()}`}>
+                                {log.type.replace(/_/g, ' ')}
+                              </span>
+                            )}
+                          </td>
+                          <td>
+                            {["PHONE_DETECTED", "MULTIPLE_FACES", "DUPLICATE_DISPLAY"].includes(log.type) ? (
+                              <span className="severity-high">High</span>
+                            ) : detailsObj ? (
+                               <span className="severity-info">Insight</span>
+                            ) : (
+                              <span className="severity-med">Medium</span>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })
                   ) : (
                     <tr>
                       <td colSpan={3} style={{ textAlign: 'center', padding: '2rem' }}>

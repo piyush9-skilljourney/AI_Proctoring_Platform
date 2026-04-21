@@ -1,0 +1,148 @@
+:root {
+  --bg-dark: #0a0a0b;
+  --bg-panel: #111112;
+  --accent-primary: #3b82f6; /* Modern Blue */
+  --accent-secondary: #6366f1;
+  --text-main: #e2e8f0;
+  --text-dim: #94a3b8;
+  --danger: #ef4444;
+  --success: #22c55e;
+  --border: rgba(255, 255, 255, 0.08);
+
+  font-family: 'Inter', system-ui, sans-serif;
+  color-scheme: dark;
+  background-color: var(--bg-dark);
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  color: var(--text-main);
+  background-color: var(--bg-dark);
+  min-height: 100vh;
+}
+
+#root {
+  display: grid;
+  grid-template-columns: 320px 1fr;
+  min-height: 100vh;
+}
+
+/* Sidebar / Audit Panel */
+.audit-sidebar {
+  background: var(--bg-panel);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  padding: 1.5rem;
+  overflow-y: auto;
+}
+
+.audit-header {
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--text-dim);
+  margin-bottom: 2rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.audit-event {
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 1rem;
+  margin-bottom: 1rem;
+  font-size: 0.85rem;
+  animation: slideIn 0.3s ease-out;
+}
+
+@keyframes slideIn {
+  from { opacity: 0; transform: translateX(-10px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+/* Main Content Area */
+.main-viewport {
+  padding: 2rem;
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+}
+
+.video-feed-container {
+  position: relative;
+  width: 100%;
+  max-width: 900px;
+  border-radius: 20px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  box-shadow: 0 40px 100px rgba(0,0,0,0.5);
+}
+
+video {
+  width: 100%;
+  aspect-ratio: 16/9;
+  object-fit: cover;
+  transform: scaleX(-1);
+}
+
+.overlay-status {
+  position: absolute;
+  top: 1.5rem;
+  left: 1.5rem;
+  padding: 0.6rem 1.2rem;
+  border-radius: 99px;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(8px);
+  border: 1px solid var(--border);
+  font-size: 0.8rem;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.telemetry-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1.5rem;
+}
+
+.telemetry-card {
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 1.2rem;
+}
+
+.telemetry-label {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  margin-bottom: 0.5rem;
+}
+
+.telemetry-value {
+  font-size: 1.5rem;
+  font-weight: 700;
+  font-family: 'JetBrains Mono', monospace;
+  color: var(--accent-primary);
+}
+
+/* Indicators */
+.dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+.dot-active { background: var(--success); box-shadow: 0 0 10px var(--success); }
+.dot-alert { background: var(--danger); box-shadow: 0 0 10px var(--danger); animation: pulse 1s infinite; }
+
+@keyframes pulse {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.2); }
+  100% { transform: scale(1); }
+}

@@ -12,21 +12,12 @@ const ReviewSubmit = () => {
 
   const handleSubmit = async () => {
     if (!sessionId && !videoUrl) {
-      alert("Missing session ID and video URL. The backend might not be reachable or camera access failed.");
-      return;
-    }
-    if (!sessionId) {
-      alert("Missing session data. The backend failed to start the session. Is your MongoDB running?");
-      return;
-    }
-    if (!videoUrl) {
-      alert("Missing video URL. Recording might have failed or the camera was blocked.");
+      alert("Missing session ID and video URL.");
       return;
     }
     
     setIsSubmitting(true);
     try {
-      // Fetch blob from Blob URL
       const response = await fetch(videoUrl);
       const videoBlob = await response.blob();
       
@@ -40,15 +31,14 @@ const ReviewSubmit = () => {
       });
       
       if (res.ok) {
-         alert("Interview successfully submitted and finalized!");
+         alert("Interview successfully submitted!");
          navigate('/');
       } else {
-         const errorText = await res.text();
-         alert(`Submission failed. Backend returned status ${res.status}: ${errorText}`);
+         alert(`Submission failed: ${res.status}`);
       }
     } catch (err) {
        console.error("Submission error:", err);
-       alert("Error occurred during submission. Is the backend server running? Check console for details.");
+       alert("Error occurred during submission.");
     } finally {
        setIsSubmitting(false);
     }
@@ -58,65 +48,52 @@ const ReviewSubmit = () => {
     <div className="review-container">
       <div className="review-card">
         <h1>Interview Completed</h1>
-        <p className="subtitle">Review your recorded session and the proctoring report before submission.</p>
+        <p className="subtitle">Review your recorded session and the behavioral audit report.</p>
 
         <div className="review-layout">
           <div className="video-section">
-            <h3>Recorded Session (Local Preview)</h3>
+            <h3>Recorded Session</h3>
             {videoUrl ? (
-              <video 
-                src={videoUrl} 
-                controls 
-                className="review-video" 
-                autoPlay={false}
-              />
+              <video src={videoUrl} controls className="review-video" />
             ) : (
               <div className="no-video">No video recorded</div>
             )}
           </div>
 
           <div className="logs-section">
-            <h3>Submission Summary</h3>
+            <h3>Neural Audit Summary</h3>
             <div className="logs-list">
-               <div className="log-item good">
-                 ✓ Your video and audio have been successfully processed.
-               </div>
-               <div className="log-item good">
-                 ✓ Environmental data captured.
-               </div>
+               <div className="log-item good">✓ Video/Audio integrity verified.</div>
                
                {logs && logs.length > 0 ? (
                  <div className="violation-alerts">
-                   <h4 style={{marginTop: "1rem", color: "#f87171"}}>Proctoring Flags Detected:</h4>
-                   <ul style={{textAlign: "left", fontSize: "0.9rem", color: "#f87171", margin: "10px 0 0 20px"}}>
-                     {logs.map((log: any, idx: number) => {
-                       const ms = log.timestamp;
-                       const mins = Math.floor(ms / 60000).toString().padStart(2, '0');
-                       const secs = Math.floor((ms % 60000) / 1000).toString().padStart(2, '0');
+                   <h4 style={{marginTop: "1rem", color: "#f87171"}}>Proctoring Flags:</h4>
+                   <ul style={{textAlign: "left", fontSize: "0.8rem", color: "#f87171", margin: "10px 0 0 20px"}}>
+                     {logs.filter((l: any) => l.event !== "BEHAVIORAL_SNAPSHOT").map((log: any, idx: number) => {
+                       const time = new Date(log.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
                        return (
-                         <li key={idx}>
-                           <strong style={{textTransform: 'uppercase'}}>{log.type.replace(/_/g, ' ')}</strong> at {mins}:{secs}
+                         <li key={idx} style={{marginBottom: '5px'}}>
+                           <strong style={{textTransform: 'uppercase'}}>{(log.event || "ALERT").replace(/_/g, ' ')}</strong> 
+                           <span style={{color: '#64748b', marginLeft: '5px'}}>at {time}</span>
                          </li>
                        );
                      })}
                    </ul>
                  </div>
                ) : (
-                 <div className="log-item good" style={{marginTop: "0.5rem"}}>
-                   ✓ No security flags detected during session.
-                 </div>
+                 <div className="log-item good" style={{marginTop: "0.5rem"}}>✓ No security flags detected.</div>
                )}
 
-               <p style={{color: "#64748b", fontSize: "0.9rem", padding: "1rem"}}>
-                 Please submit your interview to complete the session. Your proctoring and environmental logs will be sent directly to the administrative review team.
+               <p style={{color: "#64748b", fontSize: "0.8rem", padding: "1rem"}}>
+                 Your behavioral snapshots and environmental logs have been packaged for recruiter review.
                </p>
             </div>
             
             <div className="action-panel">
-              <button className="btn-secondary" onClick={() => navigate('/')} disabled={isSubmitting}>Discard & Restart</button>
-              <button className="btn-primary" onClick={handleSubmit} disabled={isSubmitting}>
-                 {isSubmitting ? "Submitting..." : "Submit Interview"}
-              </button>
+               <button className="btn-secondary" onClick={() => navigate('/')} disabled={isSubmitting}>Discard</button>
+               <button className="btn-primary" onClick={handleSubmit} disabled={isSubmitting}>
+                  {isSubmitting ? "Submitting..." : "Submit Report"}
+               </button>
             </div>
           </div>
         </div>

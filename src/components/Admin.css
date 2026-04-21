@@ -370,3 +370,38 @@
   from { opacity: 0; transform: scale(0.98); }
   to { opacity: 1; transform: scale(1); }
 }
+
+/* Behavioral Snapshot UI */
+.behavioral-snapshot {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.emotion-tag {
+  background: rgba(99, 102, 241, 0.1);
+  color: var(--primary);
+  padding: 0.2rem 0.5rem;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  border: 1px solid rgba(99, 102, 241, 0.2);
+  text-transform: uppercase;
+}
+
+.stress-tag {
+  color: var(--text-dim);
+  font-size: 0.75rem;
+  background: rgba(255, 255, 255, 0.05);
+  padding: 0.2rem 0.4rem;
+  border-radius: 4px;
+}
+
+.severity-info {
+  color: #6366f1;
+  font-weight: 600;
+}
+
+.violation-pill.behavioral_snapshot {
+  display: none; /* Handled by specialized UI */
+}

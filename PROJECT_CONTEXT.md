@@ -92,6 +92,8 @@
 | PHONE_DETECT | ObjectDetector (cell phone) | AI Alert | ✅ Active |
 | DISPLAY_AUDIT | screenDetails.length > 1 | Blocker | ✅ Active |
 | FOCUS_LOSS | window.blur / tab switch | AI Alert | ✅ Active |
+| EMOTION_SNAP | Snapshot every 10s (7 emotions) | Behavioral Audit | ✅ Active |
+| STRESS_ALERT | Sustained Stress > 85% (15s) | Red Glow Blocker | ✅ Active |
 
 ---
 
@@ -120,6 +122,12 @@
 | Step-24| Create | HANDOVER_SUMMARY.md | Completion: Final handover package, email drafts, and packaging instructions. |
 | Step-25| Modify | config.py | Bug Fix: Corrected .env path resolution for backend startup. |
 | Step-26| Create | [Integrated_AI_Proctoring_Technical_Report.md](file:///d:/Projects/FastAPI/Live Ai proctoring/AI_Proctoring_Platform/Reports/Integrated_AI_Proctoring_Technical_Report.md) | Documentation: Comprehensive technical report with flowcharts and integration guide. |
+| Step-27| Modify | PreCheck.tsx / Proctoring.tsx | Security Upgrade: Replaced Chrome Extension with zero-dependency Multi-Signal Engine (Geometry, V-Sync Jitter, Gaze-Cursor Mismatch). |
+| Step-28| Modify | PreCheck.tsx / Proctoring.tsx | Optimization: Refined Multi-Signal thresholds and Geometry logic to eliminate false positives on high-DPI / scaled displays. |
+| Step-29| Modify | PreCheck.tsx / Proctoring.tsx | Behavioral Neural Upgrade: Integrated Zero-Dependency Multi-Signal Engine with Neural Emotion & Stress Detection. |
+| Step-30| Modify | Proctoring.tsx | Behavioral Audit: Implemented Sustained Stress Alerts (flashing red) and Neural Behavioral logging for recruiter review. |
+| Step-31| Modify | PreCheck.tsx | Hotfix: Resolved critical JSX corruption and duplicate declaration error in proctoring validation pre-check. |
+| Step-32| Modify | Full Stack | Behavioral Neural Upgrade: Expanded emotion detection to 7-core states, implemented integrity impact heuristics, and legalized rich emotional snapshots in backend logs. |
 
 ---
 

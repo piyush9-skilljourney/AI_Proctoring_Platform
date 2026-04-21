@@ -4,6 +4,7 @@ from typing import List, Optional
 class LogEntry(BaseModel):
     timestamp: str
     type: str
+    details: Optional[str] = None
 
 class StartSessionRequest(BaseModel):
     candidate_name: str = "Anonymous Candidate"

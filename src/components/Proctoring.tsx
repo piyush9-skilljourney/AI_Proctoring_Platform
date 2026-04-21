@@ -14,9 +14,17 @@ type ProctoringStatus =
   | "SECURITY_ALERT"
   | "TAB_SWITCH"
   | "DUPLICATE_DISPLAY"
-  | "PERIPHERAL_DETECTED";
+  | "PERIPHERAL_DETECTED"
+  | "STRESS_ALERT"
+  | "BEHAVIORAL_ANOMALY";
 
-const CHROME_EXTENSION_ID = import.meta.env.VITE_CHROME_EXTENSION_ID || "jlgeegkokgbcapibagboldphomponhac";
+interface NeuralLogEntry {
+  timestamp: string;
+  event: string;
+  details?: string;
+}
+
+const USE_EXTENSION_SECURITY = false; // Latent toggle
 const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:8000/api/interviews";
 
 const Proctoring = () => {
@@ -34,11 +42,13 @@ const Proctoring = () => {
   const [isExternalDisplay, setIsExternalDisplay] = useState(false);
   const [pointerType, setPointerType] = useState<string>("unknown");
   const [extensionInstalled, setExtensionInstalled] = useState<boolean | null>(null);
+  const [emotion, setEmotion] = useState<string>("Neutral");
+  const [stressLevel, setStressLevel] = useState(0);
   const [displayError, setDisplayError] = useState<string | null>(null);
   const [displayPermission, setDisplayPermission] = useState<boolean>(false);
 
   const [timeLeft, setTimeLeft] = useState(120); // 2 minutes
-  const currentLogsRef = useRef<{ timestamp: number; type: ProctoringStatus }[]>([]);
+  const currentLogsRef = useRef<NeuralLogEntry[]>([]);
   const sessionIdRef = useRef<string | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const recordedChunksRef = useRef<BlobPart[]>([]);
@@ -49,6 +59,10 @@ const Proctoring = () => {
   const invalidStartTimeRef = useRef<number | null>(null);
   const currentDisplayStatusRef = useRef<ProctoringStatus>("LOADING");
   const securityViolationRef = useRef<ProctoringStatus | null>(null);
+  const mousePosRef = useRef({ x: 0.5, y: 0.5 });
+  const emotionHistoryRef = useRef<number[]>([]);
+  const highStressStartTimeRef = useRef<number | null>(null);
+  const lastLogTimeRef = useRef<number>(0);
 
   useEffect(() => {
     let faceLandmarker: FaceLandmarker;
@@ -193,13 +207,13 @@ const Proctoring = () => {
             const leftCheek = face[234];
             const rightCheek = face[454];
 
+            let ratio: number | undefined;
+
             if (nose && leftCheek && rightCheek) {
               const leftDist = Math.abs(nose.x - leftCheek.x);
               const rightDist = Math.abs(nose.x - rightCheek.x);
-
               // Calculate ratio between left distance and right distance
-              // High ratio means looking far left, low means looking far right
-              const ratio = leftDist / (rightDist + 0.0001);
+              ratio = leftDist / (rightDist + 0.0001);
 
               if (ratio > 3.0 || ratio < 0.33) {
                 isLookingAway = true; // Head turned
@@ -223,6 +237,96 @@ const Proctoring = () => {
 
               if (lookingLeftEyes || lookingRightEyes || lookingUpEyes) {
                 isLookingAway = true; // Eyeballs deviated strongly
+              }
+
+              // --- ADVANCED NEURAL EMOTION ENGINE (7-CORE) ---
+              const b = (name: string) => blendshapes.find(cat => cat.categoryName === name)?.score || 0;
+
+              const browDown = (b('browDownLeft') + b('browDownRight')) / 2;
+              const eyeWide = (b('eyeWideLeft') + b('eyeWideRight')) / 2;
+              const mouthPress = (b('mouthPressLeft') + b('mouthPressRight')) / 2;
+              const mouthSmile = (b('mouthSmileLeft') + b('mouthSmileRight')) / 2;
+              const mouthFrown = (b('mouthFrownLeft') + b('mouthFrownRight')) / 2;
+              const jawOpen = b('jawOpen');
+              const noseSneer = (b('noseSneerLeft') + b('noseSneerRight')) / 2;
+              const browInnerUp = b('browInnerUp');
+
+              let currentEmotion = "Neutral";
+              let currentStress = 0;
+              let honestyShift = 0;
+
+              // Rule-based classification for 7 basic emotions
+              if (mouthSmile > 0.4) {
+                currentEmotion = "Happy";
+                honestyShift = 5; // Positive engagement
+              } else if (eyeWide > 0.4 && jawOpen > 0.3) {
+                currentEmotion = "Surprised";
+                if (isLookingAway) honestyShift = -15; // Suspicious surprise
+              } else if (eyeWide > 0.3 && browInnerUp > 0.3) {
+                currentEmotion = "Fear";
+                honestyShift = -10; // Anxiety/Guilt signal
+              } else if (browDown > 0.4 && mouthPress > 0.3) {
+                currentEmotion = "Angry";
+                honestyShift = -5; // Frustration
+              } else if (mouthFrown > 0.3 || browDown > 0.3) {
+                currentEmotion = "Sad";
+                honestyShift = -2;
+              } else if (noseSneer > 0.3) {
+                currentEmotion = "Disgust";
+                honestyShift = -5;
+              } else {
+                currentEmotion = "Focused";
+                honestyShift = 2;
+              }
+
+              // Honesty Logic: Weighted average of emotional stability
+              // In a real app, this would be a more complex temporal model
+              currentStress = Math.min(100, Math.round((browDown * 30) + (mouthPress * 30) + (eyeWide * 20) + (isLookingAway ? 20 : 0)));
+              
+              setEmotion(currentEmotion);
+              setStressLevel(currentStress);
+
+              // --- BEHAVIORAL AUDIT ENGINE ---
+              const now = performance.now();
+              if (now - lastLogTimeRef.current > 10000) {
+                 lastLogTimeRef.current = now;
+                 currentLogsRef.current.push({
+                   timestamp: new Date().toISOString(),
+                   event: "BEHAVIORAL_SNAPSHOT",
+                   details: JSON.stringify({
+                     emotion: currentEmotion,
+                     stress: currentStress,
+                     integrity_impact: honestyShift,
+                     is_looking_away: isLookingAway
+                   })
+                 });
+              }
+
+              // --- STRESS ALERT LOGIC (15s @ 85% threshold) ---
+              if (currentStress > 85) {
+                 if (highStressStartTimeRef.current === null) highStressStartTimeRef.current = now;
+                 if (now - highStressStartTimeRef.current > 15000) {
+                    securityViolationRef.current = "STRESS_ALERT";
+                 }
+              } else if (securityViolationRef.current === "STRESS_ALERT") {
+                 securityViolationRef.current = null;
+                 highStressStartTimeRef.current = null;
+              } else {
+                 highStressStartTimeRef.current = null;
+              }
+
+              // --- GAZE-CURSOR MISMATCH ---
+              const isLookingLeft = lookingLeftEyes || (typeof ratio !== 'undefined' && ratio > 2.5);
+              const isLookingRight = lookingRightEyes || (typeof ratio !== 'undefined' && ratio < 0.4);
+              const mouseX = mousePosRef.current.x;
+
+              if ((isLookingLeft && mouseX > 0.8) || (isLookingRight && mouseX < 0.2)) {
+                if (invalidStartTimeRef.current === null) invalidStartTimeRef.current = performance.now();
+                if (performance.now() - (invalidStartTimeRef.current || 0) > 3000) {
+                  securityViolationRef.current = "DUPLICATE_DISPLAY";
+                }
+              } else {
+                invalidStartTimeRef.current = null;
               }
             }
           }
@@ -298,11 +402,16 @@ const Proctoring = () => {
 
             if (screens.length > 1) {
               securityViolationRef.current = "MULTIPLE_DISPLAYS";
-            } else if (screens.length === 1 && !screens[0].isInternal) {
-              // If only one screen and it's NOT internal, suspect duplicate/mirror mode
-              securityViolationRef.current = "DUPLICATE_DISPLAY";
-            } else if (securityViolationRef.current === "MULTIPLE_DISPLAYS" || securityViolationRef.current === "DUPLICATE_DISPLAY") {
-              securityViolationRef.current = null;
+            } else {
+              // Signal 1: Geometry Anomaly (Loosened for laptops)
+              const logicalScreenWidth = window.screen.width;
+              const logicalWindowWidth = window.innerWidth;
+              // High-DPI laptops often have taskbar offsets > 50px
+              if (document.fullscreenElement && Math.abs(logicalScreenWidth - logicalWindowWidth) > 150) {
+                securityViolationRef.current = "DUPLICATE_DISPLAY";
+              } else if (securityViolationRef.current === "MULTIPLE_DISPLAYS" || securityViolationRef.current === "DUPLICATE_DISPLAY") {
+                securityViolationRef.current = null;
+              }
             }
           };
 
@@ -364,11 +473,8 @@ const Proctoring = () => {
 
     const handlePointerType = (e: PointerEvent) => {
       setPointerType(e.pointerType); // 'mouse', 'pen', 'touch'
-      if (e.pointerType === 'mouse' || e.pointerType === 'pen') {
-        securityViolationRef.current = "PERIPHERAL_DETECTED";
-      } else if (securityViolationRef.current === "PERIPHERAL_DETECTED") {
-        securityViolationRef.current = null;
-      }
+      // ALERT: We no longer block for 'mouse' because laptop trackpads identify as 'mouse'.
+      // This remains in metadata only.
     };
 
     // Try to setup immediately, but it might fail without user interaction
@@ -378,6 +484,10 @@ const Proctoring = () => {
     // @ts-ignore
     window.triggerDisplaySecurity = () => setupDisplaySecurity(true);
 
+    const handleMouseMove = (e: MouseEvent) => {
+      mousePosRef.current = { x: e.clientX / window.innerWidth, y: e.clientY / window.innerHeight };
+    };
+
     document.addEventListener("visibilitychange", handleVisibilityChange);
     document.addEventListener("fullscreenchange", handleFullscreenChange);
     window.addEventListener("blur", handleBlur);
@@ -386,76 +496,52 @@ const Proctoring = () => {
     window.addEventListener("contextmenu", handleContextMenu);
     window.addEventListener("copy", handleCopyPaste);
     window.addEventListener("paste", handleCopyPaste);
+    window.addEventListener("mousemove", handleMouseMove);
 
-    // 5. Continuous Extension Security Polling (Hardware Audit)
-    const extensionPollInterval = setInterval(() => {
+    // 5. Continuous Native Multi-Signal Scanner
+    const nativeScanInterval = setInterval(() => {
       if (!isComponentMounted) return;
+      if (USE_EXTENSION_SECURITY) return; // Skip if extension is active
 
-      const suspiciousNames = [
-        "generic", "pnp", "hdmi", "displayport", "dp", 
-        "samsung", "lg", "dell", "benq", "acer", "asus", 
-        "viewsonic", "projector", "television", "tv"
-      ];
+      let totalSignals = 0;
+      const logicalScreenWidth = window.screen.width;
+      const logicalWindowWidth = window.innerWidth;
+      // Signal 1: Geometry (Weighted)
+      if (document.fullscreenElement && Math.abs(logicalScreenWidth - logicalWindowWidth) > 150) totalSignals += 1.0;
 
-      if (window.chrome?.runtime?.sendMessage) {
-        try {
-          window.chrome.runtime.sendMessage(CHROME_EXTENSION_ID, { type: "GET_DISPLAY_SECURITY" }, (res: any) => {
-            if (window.chrome.runtime.lastError) {
-              setExtensionInstalled(false);
-              return;
-            }
-            if (res) setExtensionInstalled(true);
+      navigator.mediaDevices.enumerateDevices().then(devices => {
+        // Signal 2: External Audio (Weighted hint)
+        const suspiciousBrands = ["samsung", "lg", "dell", "benq", "acer", "asus", "television"];
+        const hasExternalAudio = devices.some(d => d.kind === 'audiooutput' && suspiciousBrands.some(brand => d.label.toLowerCase().includes(brand)));
+        if (hasExternalAudio) totalSignals += 0.5;
 
-            if (res && res.success) {
-              const { displayCount, isMirrored, hasExternal, displays } = res;
-              const logicalCount = screenCount;
+        // Signal 3: Logical Count via Window Management
+        // @ts-ignore
+        if (window.screen.isExtended) totalSignals += 1.5;
 
-              // HEURISTIC 1: Hardware-to-Software Discrepancy
-              const isDiscrepancy = displayCount > window.screen.availWidth / window.screen.width ? false : (displayCount > logicalCount); 
-              // (More robust discrepancy check)
-              
-              // HEURISTIC 2: Display Name (EDID) Analysis - THE BREAKTHROUGH
-              const hasSuspiciousName = displays?.some((d: any) => 
-                suspiciousNames.some(name => d.name?.toLowerCase().includes(name))
-              );
-
-              if (isMirrored || (displayCount > 1 && logicalCount === 1) || hasSuspiciousName) {
-                securityViolationRef.current = "DUPLICATE_DISPLAY";
-                setScreenCount(displayCount);
-              } else if (displayCount > 1) {
-                securityViolationRef.current = "MULTIPLE_DISPLAYS";
-                setScreenCount(displayCount);
-              } else {
-                if (securityViolationRef.current === "MULTIPLE_DISPLAYS" || securityViolationRef.current === "DUPLICATE_DISPLAY") {
-                  if (displayCount === 1 && logicalCount === 1) securityViolationRef.current = null;
-                }
-                setScreenCount(displayCount);
-                setIsExternalDisplay(hasExternal);
-
-                // LAYER 4: Audio Peripheral Audit (Sync with Display Audit)
-                navigator.mediaDevices.enumerateDevices().then(devices => {
-                  const hasExternalAudio = devices.some(d => 
-                    d.kind === 'audiooutput' && 
-                    (d.label.toLowerCase().includes('hdmi') || 
-                     d.label.toLowerCase().includes('displayport') ||
-                     suspiciousNames.slice(5).some(brand => d.label.toLowerCase().includes(brand)))
-                  );
-                  if (hasExternalAudio && (securityViolationRef.current === null || securityViolationRef.current === "GOOD")) {
-                    if (hasExternal) securityViolationRef.current = "DUPLICATE_DISPLAY";
-                  }
-                });
-              }
-            }
-          });
-        } catch (e) {
-          console.error("Extension polling failed:", e);
+        // Aggregate Consensus (Requires 2.0 for a block)
+        if (totalSignals >= 2.0) {
+          securityViolationRef.current = "DUPLICATE_DISPLAY";
+          setIsExternalDisplay(true);
+        } else if (securityViolationRef.current === "DUPLICATE_DISPLAY") {
+          // Auto-clear if signals drop below threshold
+          securityViolationRef.current = null;
+          setIsExternalDisplay(false);
         }
-      }
+      });
+    }, 5000);
+
+    // Latent Extension Polling (STASHED)
+    /*
+    const extensionPollInterval = setInterval(() => {
+      if (!isComponentMounted || !USE_EXTENSION_SECURITY) return;
+      // ... extension code ...
     }, 3000);
+    */
 
     return () => {
       isComponentMounted = false;
-      clearInterval(extensionPollInterval);
+      clearInterval(nativeScanInterval);
       if (animationFrameId) cancelAnimationFrame(animationFrameId);
       if (faceLandmarker) faceLandmarker.close();
       if (objectDetector) objectDetector.close();
@@ -471,6 +557,7 @@ const Proctoring = () => {
       window.removeEventListener("contextmenu", handleContextMenu);
       window.removeEventListener("copy", handleCopyPaste);
       window.removeEventListener("paste", handleCopyPaste);
+      window.removeEventListener("mousemove", handleMouseMove);
     };
   }, []);
 
@@ -480,10 +567,14 @@ const Proctoring = () => {
       const lastLog = prev[prev.length - 1];
       const currentTimeOffset = Date.now() - interviewStartTimeRef.current;
 
-      if (lastLog && lastLog.type === status && (currentTimeOffset - lastLog.timestamp) < 3000) {
+      // Deduplication check
+      if (lastLog && lastLog.event === status && (Date.now() - new Date(lastLog.timestamp).getTime()) < 3000) {
         return;
       }
-      prev.push({ timestamp: currentTimeOffset, type: status });
+      prev.push({ 
+        timestamp: new Date().toISOString(), 
+        event: status 
+      });
     }
   }, [status]);
 
@@ -514,7 +605,7 @@ const Proctoring = () => {
         const res = await fetch(`${API_BASE}/start`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ 
+          body: JSON.stringify({
             candidate_name: candidateName,
             session_id: urlSessionId // Use the ID from the invitation link
           })
@@ -564,6 +655,8 @@ const Proctoring = () => {
       case "TAB_SWITCH": return { text: "⛔ SECURITY ALERT: TAB SWITCH", className: "warning" };
       case "DUPLICATE_DISPLAY": return { text: "⛔ BLOCKER: DUPLICATE/EXTERNAL SCREEN", className: "warning" };
       case "PERIPHERAL_DETECTED": return { text: "⚠ EXTERNAL PERIPHERAL DETECTED", className: "warning" };
+      case "STRESS_ALERT": return { text: "🔥 AI ALERT: SUSTAINED HIGH STRESS DETECTED", className: "warning" };
+      case "BEHAVIORAL_ANOMALY": return { text: "⚠ BEHAVIORAL ANOMALY: UNUSUAL PATTERNS", className: "warning" };
     }
   };
 
@@ -577,7 +670,7 @@ const Proctoring = () => {
         <h1 className="premium-gradient-text">HyrAI Proctoring</h1>
         {status !== "LOADING" && (
           <div className={`timer-badge ${timeLeft < 30 ? 'alert' : ''}`}>
-             REGULATION TIMER: {Math.floor(timeLeft / 60)}:{(timeLeft % 60).toString().padStart(2, '0')}
+            REGULATION TIMER: {Math.floor(timeLeft / 60)}:{(timeLeft % 60).toString().padStart(2, '0')}
           </div>
         )}
       </div>
@@ -598,11 +691,11 @@ const Proctoring = () => {
 
         {status !== "GOOD" && status !== "LOADING" && (
           <div className="violation-toast">
-             <span className="blink">●</span> AI ALERT: {statusInfo.text.split(' ').slice(1).join(' ')}
+            <span className="blink">●</span> AI ALERT: {statusInfo.text.split(' ').slice(1).join(' ')}
           </div>
         )}
 
-        {extensionInstalled === false && (
+        {USE_EXTENSION_SECURITY && extensionInstalled === false && (
           <div className="display-error-badge glass-panel" style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', padding: '2.5rem', zIndex: 100, textAlign: 'center', width: '450px', border: '1px solid var(--primary)' }}>
             <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>🛡️</div>
             <p style={{ color: 'var(--primary)', fontWeight: 700, fontSize: '1.2rem', marginBottom: '0.5rem' }}>HYRAI SECURITY GUARD MISSING</p>
@@ -610,17 +703,17 @@ const Proctoring = () => {
               To ensure interview integrity, the HyrAI Secure Extension is mandatory. Please install it to proceed with your session.
             </p>
             <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center' }}>
-              <a 
-                href="https://chrome.google.com/webstore" 
-                target="_blank" 
-                rel="noopener noreferrer" 
+              <a
+                href="https://chrome.google.com/webstore"
+                target="_blank"
+                rel="noopener noreferrer"
                 className="btn-premium"
                 style={{ textDecoration: 'none', display: 'inline-block' }}
               >
                 Install from Web Store
               </a>
-              <button 
-                className="btn-glass" 
+              <button
+                className="btn-glass"
                 onClick={() => window.location.reload()}
                 style={{ padding: '0.8rem 1.5rem', borderRadius: '8px', border: '1px solid var(--glass-border)', background: 'rgba(255,255,255,0.05)', color: '#fff', cursor: 'pointer' }}
               >
@@ -630,16 +723,16 @@ const Proctoring = () => {
           </div>
         )}
 
-        {displayError && !displayPermission && extensionInstalled !== false && (
+        {displayError && !displayPermission && (!USE_EXTENSION_SECURITY || extensionInstalled !== false) && (
           <div className="display-error-badge glass-panel" style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', padding: '2rem', zIndex: 50, textAlign: 'center', maxWidth: '80%' }}>
             <p style={{ color: 'var(--error)', fontWeight: 600 }}>DISPLAY SECURITY PROTOCOL REQUIRED</p>
             <p style={{ fontSize: '0.9rem', color: 'var(--text-dim)', marginBottom: '1.5rem' }}>{displayError}</p>
             <button className="btn-premium" onClick={() => {
-                // @ts-ignore
-                if (window.triggerDisplaySecurity) window.triggerDisplaySecurity();
-              }}>
-                Authorize Hardware Audit
-              </button>
+              // @ts-ignore
+              if (window.triggerDisplaySecurity) window.triggerDisplaySecurity();
+            }}>
+              Authorize Hardware Audit
+            </button>
           </div>
         )}
 
@@ -670,9 +763,10 @@ const Proctoring = () => {
           <div className="sub-label" style={{ fontSize: '0.7rem', color: 'var(--text-dim)', marginTop: '0.5rem' }}>Active Peripheral</div>
         </div>
         <div className="metric-card">
-          <div className="label">Neural Health</div>
-          <div className="value" style={{ color: status === "GOOD" ? 'var(--success)' : 'var(--error)' }}>
-            {status === "LOADING" ? "BOOTING" : status === "GOOD" ? "SECURE" : "ALERT"}
+          <div className="label">Emotion Profile</div>
+          <div className="value">{status === "LOADING" ? "-" : emotion}</div>
+          <div className="sub-label" style={{ fontSize: '0.7rem', color: 'var(--text-dim)', marginTop: '0.5rem' }}>
+            Stress Index: {stressLevel}%
           </div>
         </div>
       </div>

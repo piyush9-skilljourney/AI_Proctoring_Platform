@@ -36,7 +36,7 @@ const PreCheck = () => {
     speedMbps: 0,
     status: "testing"
   });
-  
+
   const [noiseStatus, setNoiseStatus] = useState<"testing" | "pass" | "fail">("testing");
   const volumeHistoryRef = useRef<number[]>([]);
 
@@ -57,10 +57,10 @@ const PreCheck = () => {
       fetch(`http://127.0.0.1:8000/api/interviews/invite/${inviteId}`)
         .then(res => res.json())
         .then(data => {
-           if (data.candidate_name) {
-              setCandidateName(data.candidate_name);
-              setInterviewData(data);
-           }
+          if (data.candidate_name) {
+            setCandidateName(data.candidate_name);
+            setInterviewData(data);
+          }
         })
         .catch(() => console.log("Direct access mode enabled (No Invite)"));
     }
@@ -109,13 +109,13 @@ const PreCheck = () => {
         stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
         setPermissions({ camera: true, mic: true });
         if (videoRef.current) videoRef.current.srcObject = stream;
-        
+
         audioContextRef.current = new window.AudioContext();
         analyserRef.current = audioContextRef.current.createAnalyser();
         const source = audioContextRef.current.createMediaStreamSource(stream);
         source.connect(analyserRef.current);
         const dataArray = new Uint8Array(analyserRef.current.frequencyBinCount);
-        
+
         const update = () => {
           if (!analyserRef.current) return;
           analyserRef.current.getByteFrequencyData(dataArray);
@@ -124,9 +124,9 @@ const PreCheck = () => {
           setMicVolume(pct);
           volumeHistoryRef.current.push(pct);
           if (volumeHistoryRef.current.length > 50) {
-             volumeHistoryRef.current.shift();
-             const avg = volumeHistoryRef.current.reduce((a, b) => a + b, 0) / 50;
-             setNoiseStatus(avg > 35 ? "fail" : "pass");
+            volumeHistoryRef.current.shift();
+            const avg = volumeHistoryRef.current.reduce((a, b) => a + b, 0) / 50;
+            setNoiseStatus(avg > 35 ? "fail" : "pass");
           }
           animationRef.current = requestAnimationFrame(update);
         };
@@ -294,22 +294,22 @@ const PreCheck = () => {
         <p className="subtitle">Production hardware security scan.</p>
 
         {interviewData ? (
-           <div className="jd-banner">
-              <h3>Role: {interviewData.job_type}</h3>
-              <p>{interviewData.jd}</p>
-           </div>
+          <div className="jd-banner">
+            <h3>Role: {interviewData.job_type}</h3>
+            <p>{interviewData.jd}</p>
+          </div>
         ) : (
-           <div className="jd-banner" style={{ border: '1px dashed rgba(255,255,255,0.2)', background: 'transparent' }}>
-              <h3 style={{ color: '#94a3b8' }}>MANUAL TESTING MODE</h3>
-              <p>Invitation logic bypassed. System open for proctoring verification.</p>
-           </div>
+          <div className="jd-banner" style={{ border: '1px dashed rgba(255,255,255,0.2)', background: 'transparent' }}>
+            <h3 style={{ color: '#94a3b8' }}>MANUAL TESTING MODE</h3>
+            <p>Invitation logic bypassed. System open for proctoring verification.</p>
+          </div>
         )}
 
         <div className="candidate-input">
           <label>Candidate Name</label>
-          <input 
-            type="text" 
-            value={candidateName} 
+          <input
+            type="text"
+            value={candidateName}
             onChange={(e) => setCandidateName(e.target.value)}
             disabled={!!interviewData}
             placeholder="Identity verification required"
@@ -323,9 +323,9 @@ const PreCheck = () => {
               {permissions.camera ? '✓ Identity Verified' : '✗ Camera Blocked'}
             </div>
             <div className="display-auth-overlay">
-                <button className={`auth-btn ${displayStatus}`} onClick={handleAuthorizeSetup}>
-                   {displayMsg}
-                </button>
+              <button className={`auth-btn ${displayStatus}`} onClick={handleAuthorizeSetup}>
+                {displayMsg}
+              </button>
             </div>
           </div>
 
@@ -362,12 +362,12 @@ const PreCheck = () => {
         </div>
 
         <div className="action-row">
-          <button 
+          <button
             className={`btn-primary ${!isReady ? 'disabled' : ''}`}
             disabled={!isReady}
             onClick={() => {
-               document.documentElement.requestFullscreen().catch(() => {});
-               navigate('/interview', { state: { candidateName, jobType: interviewData?.job_type } });
+              document.documentElement.requestFullscreen().catch(() => { });
+              navigate('/interview', { state: { candidateName, jobType: interviewData?.job_type } });
             }}
           >
             Enter Secure Session
