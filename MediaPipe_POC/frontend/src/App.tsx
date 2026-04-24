@@ -7,6 +7,7 @@ import { HardwareEngine, type HardwareStatus } from './engines/HardwareEngine';
 import { HardwareIntegrityEngine, type IntegrityResults } from './engines/HardwareIntegrityEngine';
 import { NeuralEngine } from './engines/NeuralEngine';
 import { FeatureEngine } from './engines/FeatureEngine';
+import { ScoringEngine } from './engines/ScoringEngine';
 
 const BACKEND_URL = 'http://localhost:8000';
 
@@ -32,6 +33,7 @@ function App() {
   const hardwareEngineRef = useRef<HardwareEngine | null>(null);
   const integrityEngineRef = useRef<HardwareIntegrityEngine | null>(null);
   const neuralEngineRef = useRef<NeuralEngine | null>(null);
+  const scoringEngineRef = useRef<ScoringEngine | null>(null);
   const frameCountRef = useRef<number>(0);
 
   const [faceResults, setFaceResults] = useState<DetectionResults | null>(null);
@@ -39,6 +41,7 @@ function App() {
   const [emotionResults, setEmotionResults] = useState<EmotionResults | null>(null);
   const [hardwareStatus, setHardwareStatus] = useState<HardwareStatus | null>(null);
   const [integrityResults, setIntegrityResults] = useState<IntegrityResults | null>(null);
+  const [behavioralMetrics, setBehavioralMetrics] = useState({ stress: 0, engagement: 0, state: 'Initializing...' });
   const [isCalibrating, setIsCalibrating] = useState(false);
   const [isDebugJitter, setIsDebugJitter] = useState(false);
   const [activeIncidents, setActiveIncidents] = useState<Incident[]>([]);
@@ -76,6 +79,7 @@ function App() {
       const hardwareEngine = new HardwareEngine();
       const integrityEngine = new HardwareIntegrityEngine();
       const neuralEngine = new NeuralEngine();
+      const scoringEngine = new ScoringEngine();
 
       try {
         faceEngineRef.current = faceEngine;
@@ -84,6 +88,7 @@ function App() {
         hardwareEngineRef.current = hardwareEngine;
         integrityEngineRef.current = integrityEngine;
         neuralEngineRef.current = neuralEngine;
+        scoringEngineRef.current = scoringEngine;
 
         await Promise.all([
           faceEngine.initialize(), 
@@ -155,12 +160,17 @@ function App() {
             
             // 2. Run Neural Inference
             try {
-              if (neuralEngineRef.current) {
+              if (neuralEngineRef.current && scoringEngineRef.current) {
                 const neuralOutputs = neuralEngineRef.current.predict(featureVector);
-                // DEBUG: Verify that features are being extracted correctly
-                if (frameCountRef.current % 60 === 0) { 
-                  console.log("📡 Neural Feature Stream (First 5):", featureVector.slice(0, 5));
-                }
+                
+                // 3. Process through the Scoring Engine (Smoothing & Metrics)
+                const audit = scoringEngineRef.current.process(neuralOutputs);
+                
+                setBehavioralMetrics({
+                  stress: audit.stressIndex,
+                  engagement: audit.engagementIndex,
+                  state: audit.primaryState
+                });
               }
             } catch (e) {
               // Silently skip if engine is still warming up
@@ -390,9 +400,15 @@ function App() {
             </div>
           </div>
           <div className="telemetry-card">
-             <div className="telemetry-label">Anomaly Score</div>
-             <div className="telemetry-value" style={{ color: (emotionResults?.anomalyScore || 0) > 40 ? 'var(--danger)' : 'var(--accent-primary)' }}>
-               {emotionResults?.anomalyScore || 0}%
+             <div className="telemetry-label">Neural Stress Score</div>
+             <div className="telemetry-value" style={{ color: behavioralMetrics.stress > 60 ? 'var(--danger)' : 'var(--accent-primary)' }}>
+               {behavioralMetrics.stress}%
+             </div>
+          </div>
+          <div className="telemetry-card">
+             <div className="telemetry-label">Engagement Index</div>
+             <div className="telemetry-value" style={{ color: behavioralMetrics.engagement < 40 ? 'var(--warning)' : 'var(--success)' }}>
+               {behavioralMetrics.engagement}%
              </div>
           </div>
           <div className="telemetry-card">
