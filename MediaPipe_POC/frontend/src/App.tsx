@@ -8,6 +8,7 @@ import { HardwareIntegrityEngine, type IntegrityResults } from './engines/Hardwa
 import { NeuralEngine } from './engines/NeuralEngine';
 import { FeatureEngine } from './engines/FeatureEngine';
 import { ScoringEngine } from './engines/ScoringEngine';
+import { SuspicionEngine } from './engines/SuspicionEngine';
 
 const BACKEND_URL = 'http://localhost:8000';
 
@@ -34,7 +35,9 @@ function App() {
   const integrityEngineRef = useRef<HardwareIntegrityEngine | null>(null);
   const neuralEngineRef = useRef<NeuralEngine | null>(null);
   const scoringEngineRef = useRef<ScoringEngine | null>(null);
+  const suspicionEngineRef = useRef<SuspicionEngine | null>(null);
   const frameCountRef = useRef<number>(0);
+  const isProcessingRef = useRef<boolean>(false); // NEW: Backpressure Control
 
   const [faceResults, setFaceResults] = useState<DetectionResults | null>(null);
   const [objectResults, setObjectResults] = useState<ObjectDetectionResults | null>(null);
@@ -42,6 +45,8 @@ function App() {
   const [hardwareStatus, setHardwareStatus] = useState<HardwareStatus | null>(null);
   const [integrityResults, setIntegrityResults] = useState<IntegrityResults | null>(null);
   const [behavioralMetrics, setBehavioralMetrics] = useState({ stress: 0, engagement: 0, state: 'Initializing...' });
+  const [suspicionRisk, setSuspicionRisk] = useState<{ level: string; reasons: string[] }>({ level: 'low', reasons: [] });
+  const [isSimulatingStress, setIsSimulatingStress] = useState(false);
   const [isCalibrating, setIsCalibrating] = useState(false);
   const [isDebugJitter, setIsDebugJitter] = useState(false);
   const [activeIncidents, setActiveIncidents] = useState<Incident[]>([]);
@@ -80,6 +85,7 @@ function App() {
       const integrityEngine = new HardwareIntegrityEngine();
       const neuralEngine = new NeuralEngine();
       const scoringEngine = new ScoringEngine();
+      const suspicionEngine = new SuspicionEngine();
 
       try {
         faceEngineRef.current = faceEngine;
@@ -89,6 +95,7 @@ function App() {
         integrityEngineRef.current = integrityEngine;
         neuralEngineRef.current = neuralEngine;
         scoringEngineRef.current = scoringEngine;
+        suspicionEngineRef.current = suspicionEngine;
 
         await Promise.all([
           faceEngine.initialize(), 
@@ -144,45 +151,58 @@ function App() {
           const objects = objectEngineRef.current.detect(videoRef.current, timestamp);
           setObjectResults(objects);
           
-          // Intake Mode Refinement: If a phone is seen, SHUT DOWN intake mode (Prevent spoofing)
-          const isDrinking = objects.detectedItems.some(item => ["bottle", "cup", "wine glass"].includes(item)) && !objects.isProhibited;
-          
-          const emotions = emotionEngineRef.current.process(face.rawBlendshapes, isDrinking);
+          const emotions = emotionEngineRef.current.process(face.rawBlendshapes);
 
           setFaceResults(face);
           setEmotionResults({ ...emotions });
 
-          // --- PHASE 3: NEURAL BEHAVIORAL AUDIT ---
+          // --- PHASE 3 & 7: NEURAL AUDIT & EDGE CASES ---
           frameCountRef.current++;
-          if (frameCountRef.current % 6 === 0 && face.rawLandmarks && face.rawLandmarks.length > 0) {
-            // 1. Extract Smart Features (DAR)
-            const featureVector = FeatureEngine.extract(face.rawLandmarks);
+          
+          // 1. Edge Case: No Face Detected (Phase 7)
+          if (!face.rawLandmarks || face.rawLandmarks.length === 0) {
+            setBehavioralMetrics(prev => ({ ...prev, state: "Searching for face..." }));
+            setSuspicionRisk({ level: 'low', reasons: [] });
+          } 
+          // 2. Throttle + Backpressure Control (Phase 3)
+          else if (frameCountRef.current % 6 === 0 && !isProcessingRef.current) {
+            isProcessingRef.current = true; // Set Busy Signal
             
-            // 2. Run Neural Inference
             try {
+              const featureVector = FeatureEngine.extract(face.rawLandmarks);
+              
               if (neuralEngineRef.current && scoringEngineRef.current) {
                 const neuralOutputs = neuralEngineRef.current.predict(featureVector);
-                
-                // 3. Process through the Scoring Engine (Smoothing & Metrics)
                 const audit = scoringEngineRef.current.process(neuralOutputs);
                 
+                const finalStress = isSimulatingStress ? 90 : audit.stressIndex;
+
                 setBehavioralMetrics({
-                  stress: audit.stressIndex,
+                  stress: finalStress,
                   engagement: audit.engagementIndex,
                   state: audit.primaryState
                 });
+
+                // 3. Weighted Suspicion Engine (Phase 5)
+                if (suspicionEngineRef.current) {
+                  const risk = suspicionEngineRef.current.evaluate({
+                    stressScore: finalStress,
+                    gazeAway: face.isAlert,
+                    objectsDetected: objects.isProhibited,
+                    isTalking: emotions.isTalking
+                  });
+                  setSuspicionRisk(risk);
+                }
               }
             } catch (e) {
-              // Silently skip if engine is still warming up
+              console.warn("Neural Loop Skip:", e);
+            } finally {
+              isProcessingRef.current = false; // Reset Busy Signal
             }
           }
 
           // Instant Multi-Violation Tracking
           const newIncidents: Incident[] = [];
-          
-          if (isDrinking) {
-            newIncidents.push({ id: `env-${timestamp}`, label: 'INTAKE MODE', severity: 'info' });
-          }
 
           if (objects.isProhibited) {
             newIncidents.push({ id: `obj-${timestamp}`, label: objects.message, severity: 'critical' });
@@ -192,14 +212,11 @@ function App() {
               captureEvidence(objects.message);
             }
           }
-          if (face.isAlert && !isDrinking) {
+          if (face.isAlert) {
             newIncidents.push({ id: `face-${timestamp}`, label: face.message, severity: 'warning' });
           }
-          if (emotions.isTalking && !isDrinking) {
+          if (emotions.isTalking) {
             newIncidents.push({ id: `talk-${timestamp}`, label: 'TALKING DETECTED', severity: 'warning' });
-          }
-          if (isDrinking) {
-            newIncidents.push({ id: 'env', label: 'INTAKE MODE', severity: 'info' });
           }
           
           // Phase 5: Hardware Integrity (Jitter)
@@ -365,8 +382,31 @@ function App() {
       </aside>
 
       <main className="main-viewport">
-        <div className={`video-feed-container ${hasCritical ? 'hull-breach' : ''}`}>
+        <div className={`video-feed-container ${hasCritical || suspicionRisk.level === 'high' ? 'hull-breach' : ''}`}>
           <video ref={videoRef} playsInline muted />
+          
+          {/* Neural Risk Badge */}
+          <div className="risk-badge" style={{ 
+            background: suspicionRisk.level === 'high' ? 'var(--danger)' : (suspicionRisk.level === 'medium' ? 'var(--warning)' : 'var(--success)'),
+            color: 'white',
+            padding: '8px 16px',
+            borderRadius: '20px',
+            position: 'absolute',
+            top: '20px',
+            right: '20px',
+            fontWeight: 'bold',
+            fontSize: '0.8rem',
+            zIndex: 10,
+            boxShadow: '0 4px 15px rgba(0,0,0,0.3)',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center'
+          }}>
+            <span>RISK: {suspicionRisk.level.toUpperCase()}</span>
+            {suspicionRisk.reasons.length > 0 && (
+              <span style={{ fontSize: '0.6rem', opacity: 0.8 }}>{suspicionRisk.reasons.join(' | ')}</span>
+            )}
+          </div>
           
           {/* Instant Incident Rail */}
           <div className="overlay-status">
@@ -394,9 +434,9 @@ function App() {
             <div className="telemetry-label">Behavioral State</div>
             <div className="telemetry-value" style={{ 
               fontSize: '0.9rem', 
-              color: emotionResults?.isSuppressed ? 'var(--info)' : (emotionResults?.isTalking ? 'var(--danger)' : 'var(--accent-primary)') 
+              color: emotionResults?.isTalking ? 'var(--danger)' : 'var(--accent-primary)' 
             }}>
-              {emotionResults?.isSuppressed ? "🥤 Intake Mode" : (emotionResults?.state || "Calibrating...")}
+              {emotionResults?.state || "Calibrating..."}
             </div>
           </div>
           <div className="telemetry-card">
@@ -462,6 +502,14 @@ function App() {
         </div>
 
         <div style={{ position: 'fixed', bottom: '1rem', right: '1rem', zIndex: 100, display: 'flex', gap: '0.5rem' }}>
+          <button 
+            className="audit-btn" 
+            style={{ background: isSimulatingStress ? 'var(--danger)' : 'rgba(255,171,0,0.1)' }}
+            onClick={() => setIsSimulatingStress(!isSimulatingStress)}
+          >
+            {isSimulatingStress ? 'STOP STRESS TEST' : 'SIMULATE HIGH STRESS'}
+          </button>
+
           <button 
             className="audit-btn" 
             style={{ background: isDebugJitter ? 'var(--danger)' : 'rgba(255,171,0,0.1)' }}

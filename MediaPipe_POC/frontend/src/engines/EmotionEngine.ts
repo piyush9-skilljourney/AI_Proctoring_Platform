@@ -4,7 +4,6 @@ export interface EmotionResults {
   isTalking: boolean;
   isSurprised: boolean;
   isAnxious: boolean;
-  isSuppressed: boolean;
   anomalyScore: number;
   state: string;
 }
@@ -21,7 +20,7 @@ export class EmotionEngine {
     YAWN_DURATION_FRAMES: 35, // ~1s of sustained opening
   };
 
-  process(blendshapes: Category[], isDrinking: boolean = false): EmotionResults {
+  process(blendshapes: Category[]): EmotionResults {
     // 1. Smooth the raw data
     blendshapes.forEach(b => {
       const prev = this.smoothedValues[b.categoryName] || 0;
@@ -43,11 +42,10 @@ export class EmotionEngine {
     const isYawning = activeFrames > this.THRESHOLDS.YAWN_DURATION_FRAMES; // Sustained open = yawn
     
     // Talking is rapid fluctuation. We look for a balance of open/closed frames.
-    const isTalking = (activeFrames > 5 && activeFrames < 25) && !isDrinking && !isYawning;
+    const isTalking = (activeFrames > 5 && activeFrames < 25) && !isYawning;
     
-    const isSurprised = eyeWide > this.THRESHOLDS.SURPRISE_EYE && !isDrinking;
-    const isAnxious = browInnerUp > this.THRESHOLDS.STRESS_BROW && browDown < 0.2 && !isDrinking;
-    const isSuppressed = isDrinking;
+    const isSurprised = eyeWide > this.THRESHOLDS.SURPRISE_EYE;
+    const isAnxious = browInnerUp > this.THRESHOLDS.STRESS_BROW && browDown < 0.2;
 
     // 4. Calculate Anomaly Score
     let score = 0;
@@ -58,8 +56,7 @@ export class EmotionEngine {
     score = Math.min(score, 100);
 
     let state = "Neutral / Focused";
-    if (isDrinking) state = "🥤 Intake Mode";
-    else if (isYawning) state = "🥱 Yawning (Benign)";
+    if (isYawning) state = "🥱 Yawning (Benign)";
     else if (isTalking) state = "Talking / Whispering";
     else if (isSurprised) state = "Peripheral Alert";
     else if (isAnxious) state = "Distressed";
@@ -68,7 +65,6 @@ export class EmotionEngine {
       isTalking,
       isSurprised,
       isAnxious,
-      isSuppressed,
       anomalyScore: score,
       state
     };
