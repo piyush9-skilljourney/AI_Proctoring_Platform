@@ -84,14 +84,14 @@ export class ObjectEngine {
 
         // Prohibited Logic (Smart Hallucination Mapping)
         const isPotentialPhone = ["cell phone", "remote", "calculator", "toothbrush"].includes(label);
-        
+
         if (isPotentialPhone || this.prohibitedLabels.includes(label)) {
           // Lowered threshold to 0.35 to catch modern phones with complex camera modules
           const minConfidence = isPotentialPhone ? 0.35 : 0.2;
-          
+
           if (score > minConfidence) {
             this.detectionHistory[label] = (this.detectionHistory[label] || 0) + 1;
-            const requiredFrames = isPotentialPhone ? 2 : 5; 
+            const requiredFrames = isPotentialPhone ? 2 : 5;
             if (this.detectionHistory[label] >= requiredFrames) {
               isProhibited = true;
               // If it misclassified as a toothbrush/remote, still report as Phone
@@ -108,7 +108,7 @@ export class ObjectEngine {
             // Keep it in items
           } else {
             // Filter it out if it's just a flicker
-            return; 
+            return;
           }
         }
 

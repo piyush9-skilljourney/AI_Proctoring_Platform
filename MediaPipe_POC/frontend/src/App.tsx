@@ -98,11 +98,11 @@ function App() {
         suspicionEngineRef.current = suspicionEngine;
 
         await Promise.all([
-          faceEngine.initialize(), 
+          faceEngine.initialize(),
           objectEngine.initialize(),
           neuralEngine.initialize() // Booting the brain
         ]);
-        
+
         hardwareEngine.subscribe(status => {
           setHardwareStatus(status);
         });
@@ -146,11 +146,11 @@ function App() {
         try {
           const timestamp = performance.now();
           const face = faceEngineRef.current.detect(videoRef.current, timestamp);
-          
+
           // Phase 2: Object Detection
           const objects = objectEngineRef.current.detect(videoRef.current, timestamp);
           setObjectResults(objects);
-          
+
           const emotions = emotionEngineRef.current.process(face.rawBlendshapes);
 
           setFaceResults(face);
@@ -158,23 +158,23 @@ function App() {
 
           // --- PHASE 3 & 7: NEURAL AUDIT & EDGE CASES ---
           frameCountRef.current++;
-          
+
           // 1. Edge Case: No Face Detected (Phase 7)
           if (!face.rawLandmarks || face.rawLandmarks.length === 0) {
             setBehavioralMetrics(prev => ({ ...prev, state: "Searching for face..." }));
             setSuspicionRisk({ level: 'low', reasons: [] });
-          } 
+          }
           // 2. Throttle + Backpressure Control (Phase 3)
           else if (frameCountRef.current % 6 === 0 && !isProcessingRef.current) {
             isProcessingRef.current = true; // Set Busy Signal
-            
+
             try {
               const featureVector = FeatureEngine.extract(face.rawLandmarks);
-              
+
               if (neuralEngineRef.current && scoringEngineRef.current) {
                 const neuralOutputs = neuralEngineRef.current.predict(featureVector);
                 const audit = scoringEngineRef.current.process(neuralOutputs);
-                
+
                 const finalStress = isSimulatingStress ? 90 : audit.stressIndex;
 
                 setBehavioralMetrics({
@@ -206,9 +206,9 @@ function App() {
 
           if (objects.isProhibited) {
             newIncidents.push({ id: `obj-${timestamp}`, label: objects.message, severity: 'critical' });
-            
+
             // EVIDENCE CAPTURE: Take a snapshot if this is a fresh violation
-            if (Math.random() < 0.1) { 
+            if (Math.random() < 0.1) {
               captureEvidence(objects.message);
             }
           }
@@ -218,11 +218,11 @@ function App() {
           if (emotions.isTalking) {
             newIncidents.push({ id: `talk-${timestamp}`, label: 'TALKING DETECTED', severity: 'warning' });
           }
-          
+
           // Phase 5: Hardware Integrity (Jitter)
           if (integrityEngineRef.current) {
             const integrity = integrityEngineRef.current.processFrame(timestamp);
-            setIntegrityResults({ ...integrity }); 
+            setIntegrityResults({ ...integrity });
             if (integrity.isCompromised) {
               newIncidents.push({ id: `jit-${timestamp}`, label: 'HARDWARE INTEGRITY COMPROMISED', severity: 'warning' });
               // Throttled Log for Jitter
@@ -250,7 +250,7 @@ function App() {
           if (isSignificant && timestamp - lastLogTime > 4000) {
             const topIncident = newIncidents.find(i => i.severity === 'critical') || newIncidents[0];
             const msg = newIncidents.length > 1 ? `MULTIPLE: ${newIncidents.map(i => i.label).join(' + ')}` : topIncident.label;
-            
+
             addLog("VIOLATION", msg, topIncident.severity === 'critical' ? 'high' : 'low');
             if (sessionId) {
               axios.post(`${BACKEND_URL}/api/poc/log`, {
@@ -263,8 +263,8 @@ function App() {
           }
         } catch (err: any) {
           if (!err.message.includes("ROI")) {
-             addLog("CRASH", `Loop failure: ${err.message}`, "high");
-             return;
+            addLog("CRASH", `Loop failure: ${err.message}`, "high");
+            return;
           }
         }
       }
@@ -286,10 +286,10 @@ function App() {
       const stream = await navigator.mediaDevices.getDisplayMedia({
         video: { displaySurface: "monitor" } as any,
       });
-      
+
       const track = stream.getVideoTracks()[0];
       const settings = track.getSettings() as any;
-      
+
       if (settings.displaySurface !== "monitor") {
         addLog("SECURITY", "BLOCK: Entire Screen sharing is mandatory.", "high");
         track.stop();
@@ -299,7 +299,7 @@ function App() {
       addLog("SECURITY", "Screen Audit Verified. Starting Display Sync...", "low");
       setIsCalibrating(true);
       integrityEngineRef.current?.startCalibration();
-      
+
       setTimeout(() => {
         setIsCalibrating(false);
         addLog("SECURITY", "Hardware Integrity Baseline Set", "low");
@@ -353,9 +353,9 @@ function App() {
             <h2 style={{ color: 'var(--accent-primary)' }}>Syncing with Display...</h2>
             <p style={{ opacity: 0.6, fontSize: '0.9rem' }}>Please keep this window focused while we establish a hardware baseline.</p>
             <div className="calibration-progress-container">
-              <div 
-                className="calibration-progress-bar" 
-                style={{ width: `${integrityEngineRef.current?.getCalibrationProgress()}%` }} 
+              <div
+                className="calibration-progress-bar"
+                style={{ width: `${integrityEngineRef.current?.getCalibrationProgress()}%` }}
               />
             </div>
           </div>
@@ -384,9 +384,9 @@ function App() {
       <main className="main-viewport">
         <div className={`video-feed-container ${hasCritical || suspicionRisk.level === 'high' ? 'hull-breach' : ''}`}>
           <video ref={videoRef} playsInline muted />
-          
+
           {/* Neural Risk Badge */}
-          <div className="risk-badge" style={{ 
+          <div className="risk-badge" style={{
             background: suspicionRisk.level === 'high' ? 'var(--danger)' : (suspicionRisk.level === 'medium' ? 'var(--warning)' : 'var(--success)'),
             color: 'white',
             padding: '8px 16px',
@@ -407,7 +407,7 @@ function App() {
               <span style={{ fontSize: '0.6rem', opacity: 0.8 }}>{suspicionRisk.reasons.join(' | ')}</span>
             )}
           </div>
-          
+
           {/* Instant Incident Rail */}
           <div className="overlay-status">
             {activeIncidents.length === 0 && (
@@ -432,44 +432,44 @@ function App() {
           </div>
           <div className="telemetry-card">
             <div className="telemetry-label">Behavioral State</div>
-            <div className="telemetry-value" style={{ 
-              fontSize: '0.9rem', 
-              color: emotionResults?.isTalking ? 'var(--danger)' : 'var(--accent-primary)' 
+            <div className="telemetry-value" style={{
+              fontSize: '0.9rem',
+              color: emotionResults?.isTalking ? 'var(--danger)' : 'var(--accent-primary)'
             }}>
               {emotionResults?.state || "Calibrating..."}
             </div>
           </div>
           <div className="telemetry-card">
-             <div className="telemetry-label">Neural Stress Score</div>
-             <div className="telemetry-value" style={{ color: behavioralMetrics.stress > 60 ? 'var(--danger)' : 'var(--accent-primary)' }}>
-               {behavioralMetrics.stress}%
-             </div>
+            <div className="telemetry-label">Neural Stress Score</div>
+            <div className="telemetry-value" style={{ color: behavioralMetrics.stress > 60 ? 'var(--danger)' : 'var(--accent-primary)' }}>
+              {behavioralMetrics.stress}%
+            </div>
           </div>
           <div className="telemetry-card">
-             <div className="telemetry-label">Engagement Index</div>
-             <div className="telemetry-value" style={{ color: behavioralMetrics.engagement < 40 ? 'var(--warning)' : 'var(--success)' }}>
-               {behavioralMetrics.engagement}%
-             </div>
+            <div className="telemetry-label">Engagement Index</div>
+            <div className="telemetry-value" style={{ color: behavioralMetrics.engagement < 40 ? 'var(--warning)' : 'var(--success)' }}>
+              {behavioralMetrics.engagement}%
+            </div>
           </div>
           <div className="telemetry-card">
             <div className="telemetry-label">Hardware Integrity</div>
-            <div className="telemetry-value" style={{ 
-              fontSize: '0.8rem', 
+            <div className="telemetry-value" style={{
+              fontSize: '0.8rem',
               color: (integrityResults?.trustScore || 0) < 0.8 ? 'var(--danger)' : 'var(--success)',
               display: 'flex',
               flexDirection: 'column',
               gap: '4px'
             }}>
               <span>{Math.round((integrityResults?.trustScore || 1) * 100)}% Trust</span>
-              <div style={{ 
-                height: '4px', 
-                width: '100%', 
+              <div style={{
+                height: '4px',
+                width: '100%',
                 background: 'rgba(255,255,255,0.1)',
                 borderRadius: '2px',
                 overflow: 'hidden'
               }}>
-                <div style={{ 
-                  height: '100%', 
+                <div style={{
+                  height: '100%',
                   width: `${(integrityResults?.trustScore || 1) * 100}%`,
                   background: (integrityResults?.trustScore || 1) < 0.8 ? 'var(--danger)' : 'var(--success)',
                   transition: 'width 0.3s ease'
@@ -480,44 +480,44 @@ function App() {
 
           <div className="telemetry-card">
             <div className="telemetry-label">Environment Audit</div>
-            <div className="telemetry-value" style={{ 
-              fontSize: '0.8rem', 
-              color: objectResults?.isProhibited ? 'var(--danger)' : 'var(--success)' 
+            <div className="telemetry-value" style={{
+              fontSize: '0.8rem',
+              color: objectResults?.isProhibited ? 'var(--danger)' : 'var(--success)'
             }}>
-              {objectResults?.detectedItems.length 
-                ? [...new Set(objectResults.detectedItems)].slice(0, 3).join(', ').toUpperCase() 
+              {objectResults?.detectedItems.length
+                ? [...new Set(objectResults.detectedItems)].slice(0, 3).join(', ').toUpperCase()
                 : 'SCANNING...'}
             </div>
           </div>
 
           <div className="telemetry-card">
             <div className="telemetry-label">Hardware Logic</div>
-            <div className="telemetry-value" style={{ 
-              fontSize: '0.8rem', 
-              color: (hardwareStatus?.monitorCount || 1) > 1 ? 'var(--danger)' : 'var(--success)' 
+            <div className="telemetry-value" style={{
+              fontSize: '0.8rem',
+              color: (hardwareStatus?.monitorCount || 1) > 1 ? 'var(--danger)' : 'var(--success)'
             }}>
-              {hardwareStatus?.monitorCount || 1} Monitor(s) { (hardwareStatus?.monitorCount || 1) > 1 ? '⚠️' : '✅' }
+              {hardwareStatus?.monitorCount || 1} Monitor(s) {(hardwareStatus?.monitorCount || 1) > 1 ? '⚠️' : '✅'}
             </div>
           </div>
         </div>
 
         <div style={{ position: 'fixed', bottom: '1rem', right: '1rem', zIndex: 100, display: 'flex', gap: '0.5rem' }}>
-          <button 
-            className="audit-btn" 
+          <button
+            className="audit-btn"
             style={{ background: isSimulatingStress ? 'var(--danger)' : 'rgba(255,171,0,0.1)' }}
             onClick={() => setIsSimulatingStress(!isSimulatingStress)}
           >
             {isSimulatingStress ? 'STOP STRESS TEST' : 'SIMULATE HIGH STRESS'}
           </button>
 
-          <button 
-            className="audit-btn" 
+          <button
+            className="audit-btn"
             style={{ background: isDebugJitter ? 'var(--danger)' : 'rgba(255,171,0,0.1)' }}
             onClick={toggleSimulation}
           >
             {isDebugJitter ? 'STOP SIMULATION' : 'SIMULATE INTERCEPTION'}
           </button>
-          
+
           <button className="audit-btn" onClick={startScreenAudit}>
             START SCREEN AUDIT
           </button>

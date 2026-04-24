@@ -3,8 +3,13 @@
  * Converts raw neural outputs into stable, human-readable behavioral scores.
  */
 export class ScoringEngine {
-  private smoothedScores: number[] = new Array(7).fill(0.5); // Initial neutral baseline
-  private readonly ALPHA = 0.15; // Smoothing factor (Higher = faster reaction, lower = smoother)
+  private smoothedScores: number[] = new Array(7).fill(0.5);
+  private readonly ALPHA = 0.15;
+  
+  // Calibration State
+  private baselineStress = 0;
+  private calibrationSamples: number[] = [];
+  private isCalibrated = false;
 
   /**
    * Processes raw neural outputs and returns smoothed behavioral metrics.
@@ -12,43 +17,45 @@ export class ScoringEngine {
    */
   process(rawOutputs: number[]) {
     // 1. Exponential Moving Average (EMA) Smoothing
-    // This prevents "flickering" alerts from eye blinks or noise.
     this.smoothedScores = rawOutputs.map((val, i) => {
       return (val * this.ALPHA) + (this.smoothedScores[i] * (1 - this.ALPHA));
     });
+    
+    const currentStress = this.calculateStressRaw();
 
-    // 2. Calculate Derived Integrity Metrics
-    // We map raw emotions to proctoring concepts.
-    const stressIndex = this.calculateStress();
+    // 2. Calibration Logic (The "Tare" Weight)
+    if (!this.isCalibrated) {
+      this.calibrationSamples.push(currentStress);
+      // After 30 samples (~3-5 seconds), lock the baseline
+      if (this.calibrationSamples.length >= 30) {
+        const sum = this.calibrationSamples.reduce((a, b) => a + b, 0);
+        this.baselineStress = sum / this.calibrationSamples.length;
+        this.isCalibrated = true;
+      }
+    }
+
+    // 3. Calculate Derived Integrity Metrics
+    const finalStress = this.isCalibrated ? Math.max(0, currentStress - this.baselineStress) : currentStress;
     const engagementIndex = this.calculateEngagement();
 
     return {
       scores: this.smoothedScores,
-      stressIndex,
+      stressIndex: Math.round(finalStress * 100),
       engagementIndex,
-      primaryState: this.getPrimaryState()
+      primaryState: this.getPrimaryState(),
+      isCalibrating: !this.isCalibrated
     };
   }
 
-  /**
-   * Logic: Stress is a combination of High Anxiety (Fear) and sustained Neutral-Frowns.
-   */
-  private calculateStress(): number {
-    // Let's assume indices: 0:Neutral, 4:Fear (Anxiety), 3:Angry
+  private calculateStressRaw(): number {
     const anxiety = this.smoothedScores[4] || 0;
     const intensity = this.smoothedScores[3] || 0;
-    
-    let score = (anxiety * 0.7) + (intensity * 0.3);
-    return Math.round(score * 100);
+    return (anxiety * 0.7) + (intensity * 0.3);
   }
 
-  /**
-   * Logic: Engagement is high when Neutral/Focused is stable.
-   */
   private calculateEngagement(): number {
     const neutral = this.smoothedScores[0] || 0;
-    const happy = this.smoothedScores[1] || 0; // "Aha!" moments are engaging
-    
+    const happy = this.smoothedScores[1] || 0;
     let score = (neutral * 0.8) + (happy * 0.2);
     return Math.round(score * 100);
   }

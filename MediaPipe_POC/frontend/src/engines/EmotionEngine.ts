@@ -30,7 +30,7 @@ export class EmotionEngine {
     // 2. Extract key metrics (Temporal Buffer)
     const jawOpen = this.smoothedValues["jawOpen"] || 0;
     this.jawHistory.push(jawOpen);
-    if (this.jawHistory.length > 60) this.jawHistory.shift(); 
+    if (this.jawHistory.length > 60) this.jawHistory.shift();
 
     const mouthLowerDown = this.smoothedValues["mouthLowerDownLeft"] || 0;
     const eyeWide = Math.max(this.smoothedValues["eyeWideLeft"] || 0, this.smoothedValues["eyeWideRight"] || 0);
@@ -40,10 +40,10 @@ export class EmotionEngine {
     // 3. Rhythmic Behavioral Logic (Ignore Yawns / Sneezes)
     const activeFrames = this.jawHistory.filter(v => v > this.THRESHOLDS.TALK_JAW).length;
     const isYawning = activeFrames > this.THRESHOLDS.YAWN_DURATION_FRAMES; // Sustained open = yawn
-    
+
     // Talking is rapid fluctuation. We look for a balance of open/closed frames.
     const isTalking = (activeFrames > 5 && activeFrames < 25) && !isYawning;
-    
+
     const isSurprised = eyeWide > this.THRESHOLDS.SURPRISE_EYE;
     const isAnxious = browInnerUp > this.THRESHOLDS.STRESS_BROW && browDown < 0.2;
 
